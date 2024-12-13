@@ -1,0 +1,125 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Indiana Court Case Scraper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .running {
+            background-color: #fff3cd;
+        }
+        .error {
+            background-color: #f8d7da;
+        }
+        .success {
+            background-color: #d4edda;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Indiana Court Case Scraper</h1>
+        <form id="uploadForm" method="post" enctype="multipart/form-data">
+            <p>Upload your CSV file containing the names to search:</p>
+            <input type="file" name="file" accept=".csv" required>
+            <button type="submit" id="submitBtn">Start Scraping</button>
+        </form>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="downloadSection" style="display: none; margin-top: 20px;">
+            <button onclick="downloadResults()">Download Results</button>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusDiv = document.getElementById('status');
+                    const submitBtn = document.getElementById('submitBtn');
+                    const downloadSection = document.getElementById('downloadSection');
+                    
+                    if (data.is_running) {
+                        statusDiv.className = 'status running';
+                        statusDiv.textContent = 'Scraping in progress...';
+                        submitBtn.disabled = true;
+                        downloadSection.style.display = 'none';
+                    } else if (data.error) {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = 'Error: ' + data.error;
+                        submitBtn.disabled = false;
+                        downloadSection.style.display = 'block';
+                    } else {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = 'Ready for new job';
+                        submitBtn.disabled = false;
+                        downloadSection.style.display = 'block';
+                    }
+                });
+        }
+
+        function downloadResults() {
+            window.location.href = '/download';
+        }
+
+        // Update status every 5 seconds
+        setInterval(updateStatus, 5000);
+        
+        // Initial status check
+        updateStatus();
+
+        // Handle form submission
+        document.getElementById('uploadForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+                return response.text();
+            })
+            .then(result => {
+                updateStatus();
+            })
+            .catch(error => {
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+            });
+        };
+    </script>
+</body>
+</html>
