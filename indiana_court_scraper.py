@@ -76,12 +76,10 @@ class IndianaCourtCaseScraper:
                     first_name_input.send_keys(char)
                     time.sleep(0.1)
 
-                # # Middle name (optional)
                 middle_name_input = self.driver.find_element(By.XPATH, "//input[@placeholder='middle name / initial']")
-                middle_name_input_value = str(row.get('Middle Name', '')).strip()
-                if middle_name_input_value:
+                if pd.notna(row.get('Middle Name')) and str(row.get('Middle Name', '')).strip():
                     middle_name_input.clear()
-                    for char in middle_name_input_value:
+                    for char in str(row.get('Middle Name')):
                         middle_name_input.send_keys(char)
                         time.sleep(0.1)
 
