@@ -1,5 +1,5 @@
 name: Build Windows Executable
-#
+
 on:
   push:
     branches: [ main ]
@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+      
     steps:
     - uses: actions/checkout@v4
     
@@ -26,10 +26,32 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
+
+    - name: Create folders and files
+      run: |
+        mkdir -p static
+        mkdir -p templates
+        
+    - name: Verify werkzeug installation
+      run: |
+        python -c "import werkzeug; print('Werkzeug version:', werkzeug.__version__)"
+        python -c "from werkzeug.urls import url_quote; print('url_quote available')"
         
     - name: Build executable
       run: |
-        pyinstaller CourtScraper.spec --clean
+        pyinstaller --onefile ^
+          --add-data "templates;templates" ^
+          --add-data "static;static" ^
+          --collect-all werkzeug ^
+          --collect-all flask ^
+          --collect-all jinja2 ^
+          --collect-all flask_cors ^
+          --collect-all click ^
+          --hidden-import werkzeug.urls ^
+          --hidden-import flask ^
+          --hidden-import flask_cors ^
+          --hidden-import jinja2 ^
+          --name CourtScraper run.py
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -37,3 +59,13 @@ jobs:
         name: CourtScraper
         path: dist/CourtScraper.exe
         retention-days: 5
+
+    - name: Verify executable exists
+      run: |
+        if (Test-Path "dist/CourtScraper.exe") {
+          echo "Executable created successfully"
+          Get-Item "dist/CourtScraper.exe" | Select-Object Length
+        } else {
+          echo "Error: Executable not found"
+          exit 1
+        }
