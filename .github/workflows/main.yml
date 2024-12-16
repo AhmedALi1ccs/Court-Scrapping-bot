@@ -56,28 +56,9 @@ jobs:
         python -c "from werkzeug.urls import url_quote; print('url_quote available')"
         
     - name: Build executable
+      shell: cmd
       run: |
-        pyinstaller --onefile ^
-          --add-data "templates;templates" ^
-          --add-data "static;static" ^
-          --collect-all werkzeug ^
-          --collect-all flask ^
-          --collect-all jinja2 ^
-          --collect-all flask_cors ^
-          --collect-all click ^
-          --hidden-import werkzeug.urls ^
-          --hidden-import werkzeug.utils ^
-          --hidden-import werkzeug.routing ^
-          --hidden-import werkzeug.datastructures ^
-          --hidden-import werkzeug.middleware ^
-          --hidden-import werkzeug.middleware.proxy_fix ^
-          --hidden-import flask ^
-          --hidden-import flask.cli ^
-          --hidden-import flask.helpers ^
-          --hidden-import flask_cors ^
-          --hidden-import jinja2 ^
-          --hidden-import jinja2.ext ^
-          --name CourtScraper run.py
+        pyinstaller --onefile --add-data "templates;templates" --add-data "static;static" --collect-all werkzeug --collect-all flask --collect-all jinja2 --collect-all flask_cors --collect-all click --hidden-import werkzeug.urls --hidden-import werkzeug.utils --hidden-import werkzeug.routing --hidden-import werkzeug.datastructures --hidden-import werkzeug.middleware --hidden-import werkzeug.middleware.proxy_fix --hidden-import flask --hidden-import flask.cli --hidden-import flask.helpers --hidden-import flask_cors --hidden-import jinja2 --hidden-import jinja2.ext --name CourtScraper run.py
           
     - name: List dist directory
       run: |
