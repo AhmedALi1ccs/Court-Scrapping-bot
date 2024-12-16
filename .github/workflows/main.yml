@@ -14,7 +14,8 @@ jobs:
       packages: write
       
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -27,10 +28,27 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
-    - name: Create folders and files
+    - name: List current directory
       run: |
-        mkdir -p static
-        mkdir -p templates
+        dir
+        
+    - name: Create folders if they don't exist
+      run: |
+        if (-not (Test-Path "static")) { New-Item -ItemType Directory -Path "static" }
+        if (-not (Test-Path "templates")) { New-Item -ItemType Directory -Path "templates" }
+        
+    - name: List directories after creation
+      run: |
+        dir
+        echo "Contents of templates directory:"
+        if (Test-Path "templates") { dir templates }
+        echo "Contents of static directory:"
+        if (Test-Path "static") { dir static }
+        
+    - name: Verify Python environment
+      run: |
+        python --version
+        pip list
         
     - name: Verify werkzeug installation
       run: |
@@ -48,10 +66,23 @@ jobs:
           --collect-all flask_cors ^
           --collect-all click ^
           --hidden-import werkzeug.urls ^
+          --hidden-import werkzeug.utils ^
+          --hidden-import werkzeug.routing ^
+          --hidden-import werkzeug.datastructures ^
+          --hidden-import werkzeug.middleware ^
+          --hidden-import werkzeug.middleware.proxy_fix ^
           --hidden-import flask ^
+          --hidden-import flask.cli ^
+          --hidden-import flask.helpers ^
           --hidden-import flask_cors ^
           --hidden-import jinja2 ^
+          --hidden-import jinja2.ext ^
           --name CourtScraper run.py
+          
+    - name: List dist directory
+      run: |
+        echo "Contents of dist directory:"
+        dir dist
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -69,3 +100,9 @@ jobs:
           echo "Error: Executable not found"
           exit 1
         }
+
+    - name: Check executable permissions
+      run: |
+        $acl = Get-Acl "dist/CourtScraper.exe"
+        echo "File permissions:"
+        $acl.Access | Format-Table IdentityReference,FileSystemRights,AccessControlType -AutoSize
