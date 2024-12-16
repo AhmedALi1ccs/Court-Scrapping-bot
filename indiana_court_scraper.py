@@ -5,10 +5,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import os
+import sys
+import requests
+import re
+import zipfile
+import io
 
 class IndianaCourtCaseScraper:
     def __init__(self, input_csv_path, output_csv_path):
@@ -20,22 +25,96 @@ class IndianaCourtCaseScraper:
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--disable-extensions")
         
-        # Initialize WebDriver
-        self.driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()), 
-            options=chrome_options
-        )
+        # Get Chrome version and download appropriate driver
+        try:
+            chrome_driver_path = self.setup_chrome_driver()
+            self.driver = webdriver.Chrome(
+                service=Service(chrome_driver_path),
+                options=chrome_options
+            )
+        except Exception as e:
+            print(f"Error setting up Chrome driver: {e}")
+            print("Please make sure Google Chrome is installed on your computer.")
+            input("Press Enter to exit...")
+            sys.exit(1)
         
         # Load input CSV
         self.df = pd.read_csv(input_csv_path)
         self.output_csv_path = output_csv_path
-        
-        # Initialize results dataframe
-        # Add this line
         self.results_list = []
-        
+
+    def get_chrome_version(self):
+        """Get the installed Chrome version."""
+        if sys.platform == "win32":
+            import winreg
+            try:
+                # Try reading from Windows Registry
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Google\Chrome\BLBeacon")
+                version, _ = winreg.QueryValueEx(key, "version")
+                major_version = version.split('.')[0]
+                return major_version
+            except WindowsError:
+                print("Could not determine Chrome version from registry.")
+                return None
+        return None
+
+    def setup_chrome_driver(self):
+        """Download and setup ChromeDriver."""
+        try:
+            # Get Chrome version
+            chrome_version = self.get_chrome_version()
+            if not chrome_version:
+                print("Could not determine Chrome version. Using latest stable ChromeDriver.")
+                chrome_version = "stable"
+
+            # Create drivers directory if it doesn't exist
+            if getattr(sys, 'frozen', False):
+                # If running as exe
+                base_path = os.path.dirname(sys.executable)
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            
+            drivers_dir = os.path.join(base_path, 'drivers')
+            os.makedirs(drivers_dir, exist_ok=True)
+
+            # Download appropriate ChromeDriver
+            driver_path = os.path.join(drivers_dir, 'chromedriver.exe')
+            
+            # If driver already exists, return its path
+            if os.path.exists(driver_path):
+                return driver_path
+
+            # Get ChromeDriver
+            if chrome_version == "stable":
+                url = "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE"
+            else:
+                url = f"https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_{chrome_version}"
+
+            version = requests.get(url).text.strip()
+            download_url = f"https://storage.googleapis.com/chrome-for-testing-public/{version}/win64/chromedriver-win64.zip"
+
+            # Download and extract ChromeDriver
+            response = requests.get(download_url)
+            with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
+                zip_file.extractall(drivers_dir)
+            
+            # Move chromedriver to the right location
+            extracted_driver = os.path.join(drivers_dir, 'chromedriver-win64', 'chromedriver.exe')
+            if os.path.exists(extracted_driver):
+                if os.path.exists(driver_path):
+                    os.remove(driver_path)
+                os.rename(extracted_driver, driver_path)
+
+            return driver_path
+
+        except Exception as e:
+            print(f"Error downloading ChromeDriver: {e}")
+            print("Please download ChromeDriver manually and place it in the 'drivers' folder.")
+            input("Press Enter to exit...")
+            sys.exit(1)
+
     def navigate_and_search(self):
-    # Iterate through each row in the dataframe
+        # Iterate through each row in the dataframe
         for index, row in self.df.iterrows():
             try:
                 # Navigate to the court case search page
@@ -76,7 +155,7 @@ class IndianaCourtCaseScraper:
                     first_name_input.send_keys(char)
                     time.sleep(0.1)
 
-                # # Middle name (optional)
+                # Middle name (optional)
                 middle_name_input = self.driver.find_element(By.XPATH, "//input[@placeholder='middle name / initial']")
                 if pd.notna(row.get('Middle Name')) and str(row.get('Middle Name', '')).strip():
                     middle_name_input.clear()
@@ -96,7 +175,7 @@ class IndianaCourtCaseScraper:
                 # Find and click search button
                 search_button = self.driver.find_element(By.XPATH, "//button[@type='submit' and contains(@class, 'btn-primary')]")
 
-                # Scroll into view and click (optional if the button is not in view)
+                # Scroll into view and click
                 self.driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
                 time.sleep(0.5)  # Brief wait to ensure smooth scrolling
 
@@ -110,7 +189,7 @@ class IndianaCourtCaseScraper:
                 results = self.extract_results()
 
                 if results:
-    # For each result found, create a new row with ALL input data plus results
+                    # For each result found, create a new row with ALL input data plus results
                     for result in results:
                         # Start with all columns from the input row
                         new_row = row.to_dict()
@@ -142,7 +221,6 @@ class IndianaCourtCaseScraper:
                         'Attorneys': '',
                         'Charges': ''
                     })
-
                     self.results_list.append(new_row)
 
                 # Convert results list to dataframe and save after each person
@@ -158,6 +236,7 @@ class IndianaCourtCaseScraper:
                 if self.results_list:
                     results_df = pd.DataFrame(self.results_list)
                     results_df.to_csv(self.output_csv_path, index=False)
+
     def extract_results(self):
         results = []
         try:
@@ -232,7 +311,6 @@ class IndianaCourtCaseScraper:
             print(f"Error in extraction: {e}")
             
         return results
-
     
     def close(self):
         self.driver.quit()
